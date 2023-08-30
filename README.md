@@ -1,96 +1,76 @@
-# Obsidian Sample Plugin
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+## Overview
 
-This project uses Typescript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in Typescript Definition format, which contains TSDoc comments describing what it does.
+ObsidianToNtfy is a plugin for Obsidian that scans your notes for task items and sends notifications. With tag-based subscription mapping, you can have task reminders sent to various channels based on the tags assigned to each task.
 
-**Note:** The Obsidian API is still in early alpha and is subject to change at any time!
+## Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+### Automatic Task Scanning
 
-## First time developing plugins?
+- Scans all Obsidian notes for tasks and automatically sets reminders.
+- Looks for `- [ ] #task` syntax in notes to identify tasks.
 
-Quick starting guide for new plugin devs:
+### Dynamic Notifications
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+- Supports due date (`📅 YYYY-MM-DD`), priority (`⏫` or `🔼`), and recurrence (`🔁 every <time-period>`).
+- Sends a notification to your desktop when tasks are due.
 
-## Releasing new releases
+## Tag-Subscription Mapping
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+You can map each tag to a specific subscription. Whenever a task with that tag is found, it will be sent to the mapped subscription. You can add multiple subscriptions by clicking the "Add new subscription" button in the settings.
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+### Setting Customization
 
-## Adding your plugin to the community plugin list
+- Users can define their custom tag-subscription mappings.
 
-- Check https://github.com/obsidianmd/obsidian-releases/blob/master/plugin-review.md
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+## Installation
 
-## How to use
+To install ObsidianToNtfy, follow these steps:
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+1. Go to Obsidian Settings.
+2. Navigate to "Community plugins".
+3. Search for "ObsidianToNtfy" and install.
 
-## Manually installing the plugin
+## Configuration
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+### Adding a New Subscription
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+1. Open Obsidian settings.
+2. Navigate to ObsidianToNtfy settings.
+3. Click "Add new subscription."
+4. Fill in the tag and subscription URL.
 
-## Funding URL
+### Adjusting Polling Interval
 
-You can include funding URLs where people who use your plugin can financially support it.
+By default, the plugin checks for tasks every 30 minutes. This can be adjusted in the code (not a UI feature as of now).
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+## Usage
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
+Here's how to add a task in an Obsidian note:
 
-If you have multiple URLs, you can also do:
+markdownCopy code
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+`- [ ] #task Order car parts 📅 2023-08-31 ⏫` 
 
-## API Documentation
+This will set a task with a due date and priority.
 
-See https://github.com/obsidianmd/obsidian-api
+## FAQ
+
+### Can I add multiple subscriptions?
+
+Yes, you can add as many subscriptions as you want. Each will be triggered based on the tags you assign to your tasks.
+
+## Contributions
+
+Contributions are welcome! Feel free to open an issue or a pull request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](https://chat.openai.com/c/LICENSE.md) file for details.
+
+
+## Support
+
+If you find this plugin useful and want to support its development, you could buy me a coffee.
+
+[![Buy Me A Coffee](https://influencermarketinghub.com/wp-content/uploads/2021/03/skiptheflip_buymeacoffee3_creativeworkdonations.png)](https://www.buymeacoffee.com/paddymac)

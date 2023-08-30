@@ -1,0 +1,11 @@
+{
+	"id": "ObsidianToNtfy",
+	"name": "ObsidianToNtfy",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "This is a ntfy plugin for Obsidian. This plugin demonstrates some of the capabilities of the Obsidian API.",
+	"author": "Obsidian",
+	"authorUrl": "https://paddymccallan.github.com",
+	"fundingUrl": "https://obsidian.md/pricing",
+	"isDesktopOnly": false
+}

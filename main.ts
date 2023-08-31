@@ -7,7 +7,9 @@ interface Task {
   dueDate?: string;
   recurrence?: 'day' | 'week' | 'month' | 'year' | string;
   status?: 'x' | '-' | '/' | ' ' | string ;
+  tags?: string[];  // Added the tags
 }
+
 
 interface ObsidianToNtfySettings {
   subscriptions: { [key: string]: string };
@@ -24,7 +26,7 @@ async function readGlobalFilterFromTasksPlugin() {
 
 // Example tasks
 // - [ ] #task Order car parts, fog light cover and under cover
-// - [ ] #task Book mot 📅 2023-08-31 ⏫ 
+// - [ ] #personal Book mot 📅 2023-08-31 ⏫ 
 // - [ ] #task Valet Car/wash🔼 
 // - [ ] #task  Practice Charachorder 🔼 🔁 every week
 
@@ -35,40 +37,42 @@ async function collectTasksFromFiles(app: App): Promise<Task[]> {
     if (file.basename.includes("excalidraw")) continue;
     const content = await app.vault.read(file);
 
-    // Now making sure the regex matches line-start to line-end
-    const statusPart = "- \\[([ xX/-])\\] #task";
+    const statusPart = "- \\[([ xX/-])\\]";
     const descriptionPart = "([^\\n📅⏫🔼🔁]*)";
-    const remainderPart = "(?:\\s*([📅⏫🔼🔁][^\\n]*))?";  // This will capture the remainder, or nothing if it's not there
-    const taskRegex = new RegExp(`${statusPart}\\s*${descriptionPart}${remainderPart}\\s*`, "gm");  // Added 'm' for multi-line
+    const remainderPart = "(?:\\s*([📅⏫🔼🔁][^\\n]*))?";
+    const taskRegex = new RegExp(`${statusPart}\\s*${descriptionPart}${remainderPart}\\s*`, "gm");
 
     let match;
     while ((match = taskRegex.exec(content)) !== null) {
-      // console.log('Match index:', match.index);
-      // console.log('Match:', match);
       
       let remainder = match[3];
       let dueDateMatch = /📅 ([0-9]{4}-[0-9]{2}-[0-9]{2})/.exec(remainder);
       let priorityMatch = /(⏫|🔼)/.exec(remainder);
       let recurrenceMatch = /🔁 every (day|week|month|year)/.exec(remainder);
 
+      // Capture and then remove the tags from the description.
+      let taskTags = match[2].match(/#\w+/g) || [];
+      let descriptionWithoutTags = match[2].replace(/#\w+/g, '').trim();
+
       let task = {
         status: (() => {
           switch (match[1]) {
             case 'x':
             case 'X':
-              return 'done'; // done (no notifications)
+              return 'done';
             case '-':
-              return 'cancelled'; // cancelled (no notifications)
+              return 'cancelled';
             case '/':
-              return 'in progress'; // in progress
+              return 'in progress';
             default:
-              return 'todo'; // Todo
+              return 'todo';
           }
         })(),
-        description: match[2].trim(),
+        description: descriptionWithoutTags,
         dueDate: dueDateMatch ? dueDateMatch[1] : undefined,
         priority: priorityMatch ? priorityMatch[1] : undefined,
-        recurrence: recurrenceMatch ? recurrenceMatch[1] : undefined
+        recurrence: recurrenceMatch ? recurrenceMatch[1] : undefined,
+        tags: taskTags  // Assign the captured tags to the task object
       };
 
       allTasks.push(task);
@@ -82,45 +86,50 @@ async function collectTasksFromFiles(app: App): Promise<Task[]> {
 async function checkTasksAndNotify(app: App, ntfySubscriptions: { [key: string]: string }) {
   
   let tasks = await collectTasksFromFiles(app);
-  console.log(tasks);
-  
   let currentDate = new Date();
 
-  console.log("checking tasks");
+  console.log(tasks);
+  console.log(ntfySubscriptions);
   
+
   tasks.forEach(task => {
     let taskDate = new Date(task.dueDate || '1970-01-01');
 
-    for (const [subscription, filter] of Object.entries(ntfySubscriptions)) {
-      if (filter && !task.description.includes(filter)) continue;
-
-      if (taskDate.toDateString() === currentDate.toDateString()) {
-        new Notice(`Task "${task.description}" is due today!`);
+    if (taskDate.toDateString() === currentDate.toDateString()) {
+      for (const [filter, subscription] of Object.entries(ntfySubscriptions)) {
+        console.log(filter);
+        console.log(task.tags);
+        console.log(filter && task.tags?.includes(filter));
+        
+        if (filter && task.tags?.contains(filter)) {
+          console.log(`Sending notification to ${subscription}`);
+          new Notice(`Task "${task.description}" is due today!`);
+        }
       }
     }
   });
 }
-
 export default class ObsidianToNtfy extends Plugin {
   settings: ObsidianToNtfySettings;
 
   async onload() {
     await this.loadSettings();
-    this.addSettingTab(new ObsidianToNtfySettingTab(this.app, this));
-  
-    console.log("load setting");
-    // Removed the debug line for tasksFilePath
+      this.addSettingTab(new ObsidianToNtfySettingTab(this.app, this));
     
-    //const globalFilter = await readGlobalFilterFromTasksPlugin();
-    const ntfySubscriptions = this.settings.subscriptions;
+      console.log("load setting");
+      // Removed the debug line for tasksFilePath
+      
+      //const globalFilter = await readGlobalFilterFromTasksPlugin();
+      const ntfySubscriptions = this.settings.tagSubscriptions || {};
   
-    this.registerInterval(window.setInterval(() => {
+      this.registerInterval(window.setInterval(() => {
       console.log("register interval");
       
-      // Removed the condition to check for tasksFilePath
-      checkTasksAndNotify(this.app, ntfySubscriptions);
+      if (Object.keys(ntfySubscriptions).length > 0) { // Check if tagSubscriptions are set
+        checkTasksAndNotify(this.app, ntfySubscriptions);
+      }
       
-    }, 30000)); // Adjust this interval as you see fit
+    }, 15000)); // Adjust this interval as you see fit
   }
   
 
@@ -167,26 +176,35 @@ class ObsidianToNtfySettingTab extends PluginSettingTab {
   }
   
   createSettingInput(containerEl: HTMLElement, initialTag: string, initialUrl: string) {
-    let newTag = initialTag;
-  
-    const newSetting = new Setting(containerEl)
-      .setName('Tag-Subscription Mapping')
-      .addText((text: TextComponent) => text
-        .setPlaceholder('Enter tag')
-        .setValue(initialTag)
-        .onChange(val => {
-          newTag = val;
-        }))
-      .addText((text: TextComponent) => text
-        .setPlaceholder('Enter subscription URL')
-        .setValue(initialUrl)
-        .onChange(async (val) => {
-          if (newTag) {
-            this.plugin.settings.tagSubscriptions![newTag] = val;
+    const settingDiv = document.createElement('div'); // Create a wrapping div
+
+    const newTagInput = document.createElement('input');
+    newTagInput.type = 'text';
+    newTagInput.placeholder = 'Enter tag';
+    newTagInput.value = initialTag;
+
+    const newUrlInput = document.createElement('input');
+    newUrlInput.type = 'text';
+    newUrlInput.placeholder = 'Enter subscription URL';
+    newUrlInput.value = initialUrl;
+
+    const removeButton = document.createElement('button');
+    removeButton.innerText = 'Remove Tag Subscription';
+    removeButton.addEventListener('click', async () => {
+        const newTag = newTagInput.value;
+        if (newTag && this.plugin.settings.tagSubscriptions && newTag in this.plugin.settings.tagSubscriptions) {
+            delete this.plugin.settings.tagSubscriptions[newTag];
             await this.plugin.saveSettings();
-          }
-        }));
-  }
+            containerEl.removeChild(settingDiv); // Remove the wrapping div
+        }
+    });
+
+    settingDiv.appendChild(newTagInput);
+    settingDiv.appendChild(newUrlInput);
+    settingDiv.appendChild(removeButton);
+
+    containerEl.appendChild(settingDiv); // Append the wrapping div
+}
   
   
 }

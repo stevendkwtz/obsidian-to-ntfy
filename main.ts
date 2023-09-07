@@ -14,10 +14,14 @@ interface Task {
 interface ObsidianToNtfySettings {
   subscriptions: { [key: string]: string };
   tagSubscriptions?: { [tag: string]: string }; 
+  defaultTime?: string; // Default time to send notifications
+  enableInAppNotifications?: boolean; // Toggle for in-app notifications
 }
 
 const DEFAULT_SETTINGS: ObsidianToNtfySettings = {
-  subscriptions: {}
+  subscriptions: {},
+  defaultTime: '11:00',
+  enableInAppNotifications: true,
 };
 
 async function readGlobalFilterFromTasksPlugin() {
@@ -159,8 +163,51 @@ class ObsidianToNtfySettingTab extends PluginSettingTab {
   display(): void {
     let { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl('h2', { text: 'ObsidianToNtfy Settings' });
-  
+    containerEl.style.margin = '30px';  // Add padding to the container
+    containerEl.style.padding = '10px';
+    containerEl.createEl('h1', { text: 'ObsidianToNtfy Settings' });
+
+    // Display main instructions
+    containerEl.createEl('h3', { text: 'How Tag Subscriptions Work:' });
+
+    containerEl.createEl('p', { text: 'This plugin allows you to map Obsidian tags to ntfy subscriptions. When a task with a specific tag reaches its due date, a notification will be sent out to all the listeners of the corresponding ntfy subscription.' });
+
+    containerEl.createEl('p', { text: 'For example, if you have a task tagged with "#work", and you map "#work" to a specific ntfy subscription, then all listeners of that subscription will be notified when the task is due.' });
+
+    // Add hyperlink to ntfy
+    let ntfyLink = containerEl.createEl('a', { href: 'https://ntfy.sh/app', text: 'Learn more about ntfy subscriptions.' });
+    ntfyLink.target = '_blank';
+
+    // Add note about dependency on Obsidian Tasks plugin
+    containerEl.createEl('h3', { text: 'Dependency:' });
+    containerEl.createEl('p', { text: 'This plugin relies on tasks created using the Obsidian Tasks plugin.' });
+
+    // Add hyperlink to Obsidian Tasks documentation
+    let obsidianTasksLink = containerEl.createEl('a', { href: 'https://publish.obsidian.md/tasks/Introduction', text: 'Learn more about Obsidian Tasks.' });
+    obsidianTasksLink.target = '_blank';
+
+    new Setting(containerEl)
+    .setName('Default Notification Time')
+    .setDesc('Set the default time for notifications in 24-hour format (HH:MM)')
+    .addText(text => text
+      .setPlaceholder('11:00')
+      .setValue(this.plugin.settings.defaultTime || '11:00')
+      .onChange(async (value) => {
+        this.plugin.settings.defaultTime = value;
+        await this.plugin.saveSettings();
+      }));
+
+    // For in-app notifications toggle
+    new Setting(containerEl)
+      .setName('Enable In-App Notifications')
+      .setDesc('Toggle to enable/disable in-app notifications')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.enableInAppNotifications || false)
+        .onChange(async (value) => {
+          this.plugin.settings.enableInAppNotifications = value;
+          await this.plugin.saveSettings();
+        }));
+    
     // Display existing tag subscriptions
     if (this.plugin.settings.tagSubscriptions) {
       for (const [tag, url] of Object.entries(this.plugin.settings.tagSubscriptions)) {
@@ -171,40 +218,67 @@ class ObsidianToNtfySettingTab extends PluginSettingTab {
     // Add a button to create a new subscription setting
     const addButton = containerEl.createEl('button', { text: 'Add new subscription' });
     addButton.addEventListener('click', () => {
-      this.createSettingInput(containerEl, '', '');
+      this.createSettingInput(containerEl, '', '', true);
     });
   }
   
-  createSettingInput(containerEl: HTMLElement, initialTag: string, initialUrl: string) {
+  createSettingInput(containerEl: HTMLElement, initialTag: string, initialUrl: string, isNew: boolean = false) {
+    let newFilter = initialTag;
+    let newSubscription = initialUrl;
+
+    // Function to add a '#' to the filter if it doesn't start with one
+    const addHashIfNeeded = (val: string) => {
+      return val.startsWith('#') ? val : `#${val}`;
+    };
+  
     const settingDiv = document.createElement('div'); // Create a wrapping div
-
-    const newTagInput = document.createElement('input');
-    newTagInput.type = 'text';
-    newTagInput.placeholder = 'Enter tag';
-    newTagInput.value = initialTag;
-
-    const newUrlInput = document.createElement('input');
-    newUrlInput.type = 'text';
-    newUrlInput.placeholder = 'Enter subscription URL';
-    newUrlInput.value = initialUrl;
-
-    const removeButton = document.createElement('button');
-    removeButton.innerText = 'Remove Tag Subscription';
-    removeButton.addEventListener('click', async () => {
-        const newTag = newTagInput.value;
-        if (newTag && this.plugin.settings.tagSubscriptions && newTag in this.plugin.settings.tagSubscriptions) {
-            delete this.plugin.settings.tagSubscriptions[newTag];
-            await this.plugin.saveSettings();
-            containerEl.removeChild(settingDiv); // Remove the wrapping div
+    settingDiv.style.padding = '10px';  // Add padding to the div
+  
+    const newTagInput = new TextComponent(settingDiv)
+      .setPlaceholder('Enter tag')
+      .setValue(newFilter)
+      .onChange(async (val) => {
+        newFilter = val;
+        await this.plugin.saveSettings();
+      });
+  
+    const newUrlInput = new TextComponent(settingDiv)
+      .setPlaceholder('Enter subscription URL')
+      .setValue(newSubscription)
+      .onChange(async (val) => {
+        newSubscription = val;
+        await this.plugin.saveSettings();
+      });
+  
+      if(isNew){
+      const addButton = settingDiv.createEl('button', { text: 'Add Subscription' });
+      addButton.style.margin = '5px';  // Add margin around the button
+      addButton.addEventListener('click', async () => {
+        if (newFilter && newSubscription) {
+          newFilter = addHashIfNeeded(newFilter); // Ensure the tag starts with a '#'
+          this.plugin.settings.tagSubscriptions![newFilter] = newSubscription;
+          await this.plugin.saveSettings();
+          this.display(); // Update the view
+          addButton.remove();
         }
+      });
+    }
+
+
+    const removeButton = settingDiv.createEl('button', { text: isNew ? 'Cancel' : 'Remove Subscription' });
+    removeButton.style.margin = '10px';  // Add margin around the button
+    removeButton.addEventListener('click', async () => {
+      if (newFilter) {
+        newFilter = addHashIfNeeded(newFilter); // Ensure the tag starts with a '#'
+        delete this.plugin.settings.tagSubscriptions![newFilter];
+        await this.plugin.saveSettings();
+        settingDiv.remove();  // Remove the div containing the input fields and buttons for this subscription
+      }
     });
-
-    settingDiv.appendChild(newTagInput);
-    settingDiv.appendChild(newUrlInput);
-    settingDiv.appendChild(removeButton);
-
+  
     containerEl.appendChild(settingDiv); // Append the wrapping div
-}
+  }
+  
   
   
 }
